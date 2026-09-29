@@ -10,9 +10,29 @@ const PORT = Number(process.env.PORT) || Number(process.env.QR_PORT) || 3456;
 const QR_SECRET = process.env.QR_SECRET || '';
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || '';
 
-let statusHtml =
-  '<!DOCTYPE html><html><body><p>Starting WhatsApp bot...</p></body></html>';
+let qrCount = 0;
 let httpServer = null;
+
+function pageHtml(body) {
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="3">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp QR</title>
+  <style>
+    body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem; }
+    img { background: #fff; padding: 16px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+${body}
+</body>
+</html>`;
+}
+
+let statusHtml = pageHtml('<p>Starting WhatsApp bot... The QR will show here in a few seconds.</p>');
 
 const GROUP_FILTERS = ['בדיקות', 'שיקום'];
 const SHIKUM_SENDER_FILTER = 'צביה';
@@ -100,7 +120,10 @@ function handleHttpRequest(req, res) {
     return;
   }
 
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
   res.end(statusHtml);
 }
 
@@ -122,32 +145,17 @@ function setStatusHtml(html) {
 async function showQr(qr) {
   ensureHttpServer();
 
-  console.log('');
-  console.log('Do NOT scan with your phone camera or a QR app.');
-  console.log('Use WhatsApp on your phone:');
-  console.log('  Settings → Linked Devices → Link a Device');
-  console.log(`Then scan the QR at: ${qrPageUrl()}`);
-  console.log('');
+  qrCount += 1;
+  console.log(`QR #${qrCount} is on the page. Scan this one, not an older code.`);
+  console.log(qrPageUrl());
 
   const dataUrl = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
-  setStatusHtml(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="refresh" content="5">
-  <title>WhatsApp QR</title>
-  <style>
-    body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem; }
-    img { background: #fff; padding: 16px; border-radius: 8px; }
-  </style>
-</head>
-<body>
+  setStatusHtml(pageHtml(`
   <h1>חיבור WhatsApp</h1>
   <p>בטלפון: הגדרות → מכשירים מקושרים → קישור מכשיר</p>
-  <p>סרוק את הקוד (מתעדכן כל ~20 שניות — רענן את הדף אם צריך)</p>
-  <img src="${dataUrl}" alt="WhatsApp QR" width="400" height="400">
-</body>
-</html>`);
+  <p>סרוק את הקוד שעל המסך עכשיו. הוא מתחלף כל כמה שניות.</p>
+  <p>QR #${qrCount}</p>
+  <img src="${dataUrl}" alt="WhatsApp QR" width="400" height="400">`));
 
   if (process.platform === 'darwin' && process.env.OPEN_QR_LOCAL !== '0') {
     await QRCode.toFile(QR_IMAGE_PATH, qr, { width: 400, margin: 2 });
@@ -245,6 +253,7 @@ const AUTH_DATA_PATH =
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: AUTH_DATA_PATH }),
+  authTimeoutMs: 120000,
   puppeteer: {
     headless: true,
     executablePath: resolveChromePath(),
@@ -253,6 +262,11 @@ const client = new Client({
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--no-first-run',
+      '--mute-audio',
+      '--renderer-process-limit=1',
     ],
   },
 });
@@ -275,9 +289,7 @@ client.on('qr', (qr) => {
 
 client.on('authenticated', () => {
   removeQrImage();
-  setStatusHtml(
-    '<!DOCTYPE html><html><body><p>Authenticated. Connecting...</p></body></html>',
-  );
+  setStatusHtml(pageHtml('<p>Authenticated. Connecting...</p>'));
   console.log('Authenticated.');
 });
 
@@ -286,9 +298,7 @@ client.on('auth_failure', (msg) => {
 });
 
 client.on('ready', async () => {
-  setStatusHtml(
-    '<!DOCTYPE html><html><body><p>Bot is ready and listening for messages.</p></body></html>',
-  );
+  setStatusHtml(pageHtml('<p>Bot is ready and listening for messages.</p>'));
   console.log('Bot is ready. Watching groups containing:', GROUP_FILTERS.join(', '));
 
   try {
