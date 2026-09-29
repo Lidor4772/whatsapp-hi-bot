@@ -210,42 +210,33 @@ function findMatchingLookout(messageBody) {
   return LOOKOUT_STRINGS.find((term) => messageBody.includes(term)) || null;
 }
 
-async function logShikumParticipants(groups) {
-  const shikumGroups = groups.filter(
-    (group) => group.name.includes('שיקום'),
-  );
+function logMemory(label) {
+  const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+  console.log(`${label} memory=${rssMb}MB`);
+}
 
-  if (shikumGroups.length === 0) {
-    console.log('No groups containing "שיקום" found.');
-    return;
+function chromeArgs() {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-extensions',
+    '--no-first-run',
+    '--mute-audio',
+    '--renderer-process-limit=1',
+  ];
+  if (process.platform !== 'darwin') {
+    args.push(
+      '--no-zygote',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+    );
   }
-
-  for (const group of shikumGroups) {
-    console.log(`\nParticipants in "${group.name}":`);
-    const participants = group.participants || [];
-
-    for (const participant of participants) {
-      const contact = await client.getContactById(participant.id._serialized);
-      const name = getSenderName(contact);
-      const marker = name.includes(SHIKUM_SENDER_FILTER) ? ' <-- target' : '';
-      console.log(`  - ${name || participant.id.user}${marker}`);
-    }
-
-    const tzviaMatches = [];
-    for (const participant of participants) {
-      const contact = await client.getContactById(participant.id._serialized);
-      const name = getSenderName(contact);
-      if (name.includes(SHIKUM_SENDER_FILTER)) {
-        tzviaMatches.push(name);
-      }
-    }
-
-    if (tzviaMatches.length === 0) {
-      console.log(`  WARNING: no participant name containing "${SHIKUM_SENDER_FILTER}" found.`);
-    } else {
-      console.log(`  Found ${SHIKUM_SENDER_FILTER}: ${tzviaMatches.join(', ')}`);
-    }
-  }
+  return args;
 }
 
 const AUTH_DATA_PATH =
@@ -257,17 +248,7 @@ const client = new Client({
   puppeteer: {
     headless: true,
     executablePath: resolveChromePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-      '--disable-extensions',
-      '--no-first-run',
-      '--mute-audio',
-      '--renderer-process-limit=1',
-    ],
+    args: chromeArgs(),
   },
 });
 
@@ -289,43 +270,19 @@ client.on('qr', (qr) => {
 
 client.on('authenticated', () => {
   removeQrImage();
-  setStatusHtml(pageHtml('<p>Authenticated. Connecting...</p>'));
-  console.log('Authenticated.');
+  setStatusHtml(pageHtml('<p>הטלפון קושר. מסיים חיבור — אל תסרוק שוב.</p>'));
+  console.log('Authenticated. Keeping the session up.');
+  logMemory('authenticated');
 });
 
 client.on('auth_failure', (msg) => {
   console.error('Authentication failed:', msg);
 });
 
-client.on('ready', async () => {
+client.on('ready', () => {
   setStatusHtml(pageHtml('<p>Bot is ready and listening for messages.</p>'));
   console.log('Bot is ready. Watching groups containing:', GROUP_FILTERS.join(', '));
-
-  try {
-    const chats = await client.getChats();
-    const watchedGroups = chats.filter(
-      (chat) => chat.isGroup && matchesGroupFilter(chat.name),
-    );
-
-    if (watchedGroups.length === 0) {
-      console.log('No matching groups found yet. They will be picked up when messages arrive.');
-    } else {
-      console.log('Watching groups:');
-      for (const group of watchedGroups) {
-        const type = getGroupType(group.name);
-        const rule =
-          type === 'shikum'
-            ? `respond only to "${SHIKUM_SENDER_FILTER}"`
-            : 'respond to all';
-        console.log(`  - ${group.name} (${rule})`);
-      }
-    }
-
-    await logShikumParticipants(watchedGroups);
-  } catch (err) {
-    console.error('Could not list groups yet:', err.message);
-    console.log('Bot is still listening for messages.');
-  }
+  logMemory('ready');
 });
 
 async function handleMessage(msg) {
