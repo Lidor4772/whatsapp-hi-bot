@@ -1,0 +1,21 @@
+# Render Blueprint. Free web service — no credit card.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: whatsapp-hi-bot
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: QR_SECRET
+        generateValue: true
+      - key: PUBLIC_APP_URL
+        value: https://whatsapp-hi-bot.onrender.com
+      - key: AUTH_DATA_PATH
+        value: /data/.wwebjs_auth
+      - key: OPEN_QR_LOCAL
+        value: "0"
+      - key: NODE_ENV
+        value: production

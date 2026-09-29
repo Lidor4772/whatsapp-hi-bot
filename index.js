@@ -70,25 +70,48 @@ function qrPageUrl() {
   return QR_SECRET ? `${base}/?token=${encodeURIComponent(QR_SECRET)}` : base;
 }
 
+function readRequestUrl(req) {
+  try {
+    return new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  } catch {
+    return new URL('/', 'http://localhost');
+  }
+}
+
+function isHealthPath(pathname) {
+  return pathname === '/health' || pathname === '/health/';
+}
+
+function handleHttpRequest(req, res) {
+  const url = readRequestUrl(req);
+
+  if (isHealthPath(url.pathname)) {
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end('ok');
+    return;
+  }
+
+  if (QR_SECRET && url.searchParams.get('token') !== QR_SECRET) {
+    res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Unauthorized. Open the URL with the correct token.');
+    return;
+  }
+
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(statusHtml);
+}
+
 function ensureHttpServer() {
   if (httpServer) return;
 
-  httpServer = http.createServer((req, res) => {
-    if (QR_SECRET) {
-      const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-      if (url.searchParams.get('token') !== QR_SECRET) {
-        res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Unauthorized. Open the URL with the correct token.');
-        return;
-      }
-    }
-
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(statusHtml);
-  });
+  httpServer = http.createServer(handleHttpRequest);
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Web UI: ${publicAppUrl()}`);
+    console.log(`Health: ${publicAppUrl()}/health`);
   });
 }
 
@@ -352,9 +375,13 @@ process.on('unhandledRejection', (err) => {
   console.error('Unhandled rejection:', err);
 });
 
-ensureHttpServer();
-console.log('Starting WhatsApp bot...');
-client.initialize().catch((err) => {
-  console.error('Failed to initialize:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  ensureHttpServer();
+  console.log('Starting WhatsApp bot...');
+  client.initialize().catch((err) => {
+    console.error('Failed to initialize:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { handleHttpRequest, ensureHttpServer };
