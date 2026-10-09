@@ -1,0 +1,7 @@
+node_modules/
+.wwebjs_auth/
+.baileys_auth/
+whatsapp-qr.png
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc
