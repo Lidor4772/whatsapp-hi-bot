@@ -1,6 +1,6 @@
 # Deploy the WhatsApp bot on Render (free)
 
-Fly.io is not used. Render’s free web service does not need a credit card. It sleeps after about 15 minutes without traffic, so a free ping keeps it awake.
+The bot uses **Baileys** (WebSocket, no Chrome). That fits Render’s **512 MB free** tier much better than the old browser-based stack. Render’s free web service does not need a credit card. It sleeps after about 15 minutes without traffic, so a free ping keeps it awake.
 
 ## What you need
 

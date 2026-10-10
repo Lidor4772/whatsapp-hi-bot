@@ -14,7 +14,7 @@ services:
       - key: PUBLIC_APP_URL
         value: https://whatsapp-hi-bot.onrender.com
       - key: AUTH_DATA_PATH
-        value: /data/.wwebjs_auth
+        value: /data/.baileys_auth
       - key: OPEN_QR_LOCAL
         value: "0"
       - key: NODE_ENV
